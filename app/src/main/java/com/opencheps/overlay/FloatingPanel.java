@@ -57,8 +57,8 @@ public class FloatingPanel {
         toggleBtn.setOnClickListener(v -> {
             paused = !paused;
             toggleBtn.setImageResource(paused
-                    ? android.R.drawable.ic_media_play
-                    : android.R.drawable.ic_media_pause);
+                    ? android.android.R.drawable.ic_media_play
+                    : android.android.R.drawable.ic_media_pause);
             if (listener != null) listener.onPauseToggle(paused);
         });
         stopBtn.setOnClickListener(v -> {
