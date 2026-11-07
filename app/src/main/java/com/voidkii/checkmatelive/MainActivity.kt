@@ -1,9 +1,11 @@
 package com.voidkii.checkmatelive
 
 import android.app.Activity
-import android.media.projection.MediaProjectionManager
 import android.content.Intent
+import android.media.projection.MediaProjectionManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.checkmate.capture.ScreenCaptureService
+import com.checkmate.overlay.OverlayService
 
 private val Ink = Color(0xFF101114)
 private val Panel = Color(0xFF1A1C21)
@@ -42,15 +46,19 @@ private val Accent = Color(0xFFE8E9ED)
 
 class MainActivity : ComponentActivity() {
     private var captureState by mutableStateOf(false)
+    private var chosenSide = "w"
 
     private val capturePermission = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val data = result.data
         if (result.resultCode == Activity.RESULT_OK && data != null) {
-            val serviceIntent = Intent(this, CaptureService::class.java).apply {
-                putExtra(CaptureService.EXTRA_RESULT_CODE, result.resultCode)
-                putExtra(CaptureService.EXTRA_RESULT_DATA, data)
+            val overlayIntent = Intent(this, OverlayService::class.java)
+            startService(overlayIntent)
+            val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+                putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
+                putExtra(ScreenCaptureService.EXTRA_USER_SIDE, chosenSide)
             }
             ContextCompat.startForegroundService(this, serviceIntent)
             captureState = true
@@ -69,41 +77,21 @@ class MainActivity : ComponentActivity() {
                 onSurface = Accent
             )) {
                 var mode by remember { mutableStateOf("Offline") }
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Ink
-                ) {
+                var side by remember { mutableStateOf("w") }
+                Surface(modifier = Modifier.fillMaxSize(), color = Ink) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 24.dp, vertical = 30.dp),
-                        verticalArrangement = Arrangement.spacedBy(18.dp)
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 30.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text(
-                            "CHECKMATE LIVE",
-                            color = Muted,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.sp
-                        )
-                        Text(
-                            "Your chess practice space.",
-                            fontSize = 28.sp,
-                            lineHeight = 34.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            "Built for solo training and games against chess bots.",
-                            color = Muted,
-                            fontSize = 14.sp
-                        )
+                        Text("CHECKMATE LIVE", color = Muted, fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Text("Chess, understood.", fontSize = 29.sp, lineHeight = 34.sp,
+                            fontWeight = FontWeight.SemiBold)
+                        Text("Live board recognition and engine analysis for bot games and solo practice.",
+                            color = Muted, fontSize = 14.sp)
 
-                        Spacer(Modifier.height(4.dp))
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Panel, RoundedCornerShape(20.dp))
-                                .padding(18.dp),
+                            modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(20.dp)).padding(18.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text("ANALYSIS MODE", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -112,58 +100,74 @@ class MainActivity : ComponentActivity() {
                                 ModeButton("Online", mode == "Online") { mode = "Online" }
                             }
                             Text(
-                                if (mode == "Offline") "On-device analysis is the target. Stockfish integration is the next milestone."
-                                else "Optional cloud analysis is planned. No account or API key is configured yet.",
-                                color = Muted,
-                                fontSize = 13.sp
+                                if (mode == "Offline") "Stockfish runs on your phone. No internet or account needed."
+                                else "Online analysis is not connected yet. Offline Stockfish remains available.",
+                                color = Muted, fontSize = 13.sp
                             )
                         }
 
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Panel, RoundedCornerShape(20.dp))
-                                .padding(18.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(20.dp)).padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("SCREEN CAPTURE", fontSize = 11.sp, color = Muted, fontWeight = FontWeight.Bold)
+                            Text("YOUR SIDE", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                ModeButton("White", side == "w") { side = "w"; chosenSide = "w" }
+                                ModeButton("Black", side == "b") { side = "b"; chosenSide = "b" }
+                            }
+                            Text("Choose the colour you play as in the bot game. Start from the normal initial position to calibrate piece recognition.",
+                                color = Muted, fontSize = 13.sp)
+                        }
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(20.dp)).padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("LIVE ANALYSIS", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                if (captureState) "Capture permission granted for this session."
-                                else "Not active. Android will ask before any screen is captured.",
+                                if (captureState) "Capture session started. Checkmate Live will look for a chessboard."
+                                else "Not active. You control when screen capture starts and stops.",
                                 fontSize = 14.sp
                             )
+                            OutlinedButton(
+                                onClick = {
+                                    if (!Settings.canDrawOverlays(this@MainActivity)) {
+                                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            Uri.parse("package:$packageName"))
+                                        startActivity(intent)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text(if (Settings.canDrawOverlays(this@MainActivity)) "Overlay permission granted" else "Grant floating-panel permission") }
                             Button(
                                 onClick = {
-                                    val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                                    capturePermission.launch(manager.createScreenCaptureIntent())
+                                    if (!Settings.canDrawOverlays(this@MainActivity)) {
+                                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            Uri.parse("package:$packageName"))
+                                        startActivity(intent)
+                                    } else {
+                                        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                        capturePermission.launch(manager.createScreenCaptureIntent())
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)
-                            ) {
-                                Text("Allow screen capture")
-                            }
+                            ) { Text("Start live analysis") }
                             OutlinedButton(
                                 onClick = {
-                                    stopService(Intent(this@MainActivity, CaptureService::class.java))
+                                    stopService(Intent(this@MainActivity, ScreenCaptureService::class.java))
+                                    stopService(Intent(this@MainActivity, OverlayService::class.java))
                                     captureState = false
                                 },
                                 modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Stop capture")
-                            }
+                            ) { Text("Stop analysis") }
                         }
 
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            "Stockfish: not integrated yet  •  Board recognition: next milestone",
-                            color = Muted,
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            "Use engine assistance only in bot games or solo practice, never in human games where it is prohibited.",
-                            color = Muted,
-                            fontSize = 11.sp
-                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text("Calibration: show the standard starting position after capture begins.",
+                            color = Muted, fontSize = 12.sp)
+                        Text("For bot games and solo practice only. Do not use engine assistance in human games where it is prohibited.",
+                            color = Muted, fontSize = 11.sp)
                     }
                 }
             }
@@ -174,10 +178,10 @@ class MainActivity : ComponentActivity() {
 @androidx.compose.runtime.Composable
 private fun ModeButton(label: String, selected: Boolean, onClick: () -> Unit) {
     if (selected) {
-        Button(
-            onClick = onClick,
-            colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)
-        ) { Text(label) }
+        Button(onClick = onClick,
+            colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
+            Text(label)
+        }
     } else {
         OutlinedButton(onClick = onClick) { Text(label) }
     }
