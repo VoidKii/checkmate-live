@@ -1,9 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="false"
+        android:extractNativeLibs="true"
         android:label="Checkmate Live"
         android:supportsRtl="true"
         android:theme="@style/Theme.CheckmateLive">
@@ -17,8 +21,12 @@
         </activity>
 
         <service
-            android:name=".CaptureService"
+            android:name="com.checkmate.capture.ScreenCaptureService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+
+        <service
+            android:name="com.checkmate.overlay.OverlayService"
+            android:exported="false" />
     </application>
 </manifest>
