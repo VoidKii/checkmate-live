@@ -11,6 +11,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      STOCKFISH_TAG: sf_18
+      STOCKFISH_ARM64_SHA: cc3b3b74466b6d85cdc0f8cfdad4111c6a44bd0698f4eab96fea7b359a54d3d4
+      STOCKFISH_ARMV7_SHA: 672fbd7533d15fc70dae82df52c1185236975d059a585aa65eda960f1a3266ea
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -26,12 +30,54 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Build debug APK
-        run: gradle assembleDebug
+      - name: Cache Stockfish 18
+        id: stockfish-cache
+        uses: actions/cache@v4
+        with:
+          path: sf-cache
+          key: stockfish-${{ env.STOCKFISH_TAG }}-android-v1
 
-      - name: Upload APK
+      - name: Download Stockfish 18 Android binaries
+        if: steps.stockfish-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p sf-cache
+          curl -fL -o sf-cache/arm64.tar https://github.com/official-stockfish/Stockfish/releases/download/${STOCKFISH_TAG}/stockfish-android-armv8.tar
+          curl -fL -o sf-cache/armv7.tar https://github.com/official-stockfish/Stockfish/releases/download/${STOCKFISH_TAG}/stockfish-android-armv7-neon.tar
+          mkdir -p sf-cache/extract
+          tar xf sf-cache/arm64.tar -C sf-cache/extract
+          tar xf sf-cache/armv7.tar -C sf-cache/extract
+          mv sf-cache/extract/stockfish/stockfish-android-armv8 sf-cache/libstockfish-arm64.so
+          mv sf-cache/extract/stockfish/stockfish-android-armv7-neon sf-cache/libstockfish-armv7.so
+          rm -rf sf-cache/extract sf-cache/*.tar
+
+      - name: Verify Stockfish checksums
+        run: |
+          set -euo pipefail
+          echo "${STOCKFISH_ARM64_SHA}  sf-cache/libstockfish-arm64.so" | sha256sum -c -
+          echo "${STOCKFISH_ARMV7_SHA}  sf-cache/libstockfish-armv7.so" | sha256sum -c -
+
+      - name: Package Stockfish for Android
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/jniLibs/arm64-v8a app/src/main/jniLibs/armeabi-v7a
+          cp sf-cache/libstockfish-arm64.so app/src/main/jniLibs/arm64-v8a/libstockfish.so
+          cp sf-cache/libstockfish-armv7.so app/src/main/jniLibs/armeabi-v7a/libstockfish.so
+          ls -lh app/src/main/jniLibs/*/libstockfish.so
+
+      - name: Build debug APKs
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload arm64 APK (Galaxy A23)
         uses: actions/upload-artifact@v4
         with:
-          name: checkmate-live-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: checkmate-live-arm64-debug
+          path: app/build/outputs/apk/debug/*arm64-v8a*.apk
+          if-no-files-found: error
+
+      - name: Upload armv7 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkmate-live-armv7-debug
+          path: app/build/outputs/apk/debug/*armeabi-v7a*.apk
           if-no-files-found: error
