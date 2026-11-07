@@ -605,7 +605,7 @@ public class ScreenCaptureService extends Service {
         Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(getString(R.string.notif_title))
                 .setContentText(getString(R.string.notif_text))
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(android.R.drawable.ic_menu_view)
                 .setOngoing(true)
                 .addAction(0, "Stop", stopPi)
                 .build();
